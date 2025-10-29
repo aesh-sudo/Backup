@@ -1,0 +1,49 @@
+#!/bin/bash
+
+read -p "Specify the path to the directory or file to backup: " src
+read -p "Specify the path to the backup storage directory: " dst
+
+# Проверка параметров на заполнение
+if [[ -z "$src" ]]; then
+  echo "The path to the backup directory or file cannot be empty" >&2
+  exit 1
+fi
+
+if [[ -z "$dst" ]]; then
+  echo "The path to the backup storage directory cannot be empty" >&2
+  exit 1
+fi
+
+# Проверка на существование архивируемого файла/директории
+if ! [[ -e "$src" ]]; then
+  echo "Error: source '$src' does not exist" >&2
+  exit 1
+fi
+
+if ! [[ -d "$dst" ]]; then
+  echo "Error: backup directory '$dst' does not exist" >&2
+  exit 1
+fi
+
+# Архивация
+base_name=$(basename "$src")
+date=$(date '+%Y%m%d_%H%M%S')
+dst_file=${dst%/}/${base_name}_backup_${date}.tar.gz
+
+if tar -czf "$dst_file" -C "$(dirname "$src")" "$base_name" 2>/dev/null; then
+  echo "Backup created: $dst_file"
+
+  # Ротация: оставить последние 3 бэкапа
+  pattern="${base_name}_backup_*.tar.gz"
+
+  # Получаем список бэкапов и сортируем по времени (сначала новые)
+  mapfile -t files < <(ls -t "$dst"/$pattern 2>/dev/null)
+
+  if [[ ${#files[@]} -gt 3 ]]; then
+    # Удаляем с 4-го бэкапа и до конца
+    rm -f "${files[@]:3}"
+  fi
+else
+  echo "Failed to create backup" >&2
+  exit 1
+fi
